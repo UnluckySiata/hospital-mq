@@ -13,19 +13,11 @@ import (
 
 const (
 	HOSPITAL_EXCHANGE = "hospital"
-	INFO_EXCHANGE     = "info"
 )
 
 var (
 	doc = flag.String("n", "doc", "doc")
 )
-
-func handleFinished(msgs <-chan amqp.Delivery) {
-	for d := range msgs {
-		fmt.Printf("Incoming: %s\n", d.Body)
-		d.Ack(false)
-	}
-}
 
 func main() {
 	flag.Parse()
@@ -86,6 +78,41 @@ func main() {
 	}
 	go handleFinished(msgs)
 
+	q, err = ch.QueueDeclare(
+		"",    // name
+		false, // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+
+	if err != nil {
+		fmt.Printf("Failed to declare queue: %v\n", err)
+		return
+	}
+	err = ch.QueueBind(q.Name, "info", HOSPITAL_EXCHANGE, false, nil)
+	if err != nil {
+		fmt.Printf("Failed to bind queue: %v\n", err)
+		return
+	}
+
+	msgs, err = ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		false,  // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+
+	if err != nil {
+		fmt.Printf("Failed to consume: %v\n", err)
+		return
+	}
+	go handleInfo(msgs)
+
 	fmt.Printf("Welcome doctor %s!\n", *doc)
 	fmt.Println("Order examination:\n[variant] [patient name]")
 	reader := bufio.NewReader(os.Stdin)
@@ -121,5 +148,19 @@ func main() {
 		if err != nil {
 			fmt.Printf("Failed to publish: %v\n", err)
 		}
+	}
+}
+
+func handleFinished(msgs <-chan amqp.Delivery) {
+	for d := range msgs {
+		fmt.Printf("Incoming: %s\n", d.Body)
+		d.Ack(false)
+	}
+}
+
+func handleInfo(msgs <-chan amqp.Delivery) {
+	for d := range msgs {
+		fmt.Printf("INFO: %s\n", d.Body)
+		d.Ack(false)
 	}
 }

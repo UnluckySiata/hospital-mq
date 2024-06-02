@@ -12,7 +12,6 @@ import (
 
 const (
 	HOSPITAL_EXCHANGE = "hospital"
-	INFO_EXCHANGE     = "info"
 )
 
 var (
@@ -139,6 +138,48 @@ func main() {
 		go handleJobs(ch, v, msgs)
 	}
 
+	q, err := ch.QueueDeclare(
+		"",    // name
+		false, // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+
+	if err != nil {
+		fmt.Printf("Failed to declare queue: %v\n", err)
+		return
+	}
+	err = ch.QueueBind(q.Name, "info", HOSPITAL_EXCHANGE, false, nil)
+	if err != nil {
+		fmt.Printf("Failed to bind queue: %v\n", err)
+		return
+	}
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"",     // consumer
+		false,  // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+
+	if err != nil {
+		fmt.Printf("Failed to consume: %v\n", err)
+		return
+	}
+	go handleInfo(msgs)
+
 	var forever chan struct{}
 	<-forever
+}
+
+func handleInfo(msgs <-chan amqp.Delivery) {
+	for d := range msgs {
+		fmt.Printf("INFO: %s\n", d.Body)
+		d.Ack(false)
+	}
 }
