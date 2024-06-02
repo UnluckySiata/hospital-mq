@@ -133,7 +133,7 @@ func main() {
 		patient := info[1]
 
 		key := fmt.Sprintf("tech.%s", variant)
-		body := fmt.Sprintf("%s %s", *doc, patient)
+		body := fmt.Sprintf("%s %s %s", *doc, variant, patient)
 
 		err = ch.Publish(
 			HOSPITAL_EXCHANGE, // exchange

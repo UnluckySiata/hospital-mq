@@ -21,43 +21,6 @@ var (
 	elbow    = flag.Bool("e", false, "elbow")
 )
 
-func handleJobs(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
-	for d := range msgs {
-		info := strings.SplitN(string(d.Body), " ", 2)
-
-		if len(info) != 2 {
-			d.Ack(false)
-			continue
-		}
-
-		doc := info[0]
-		patient := info[1]
-
-		reply := fmt.Sprintf("%s %s done", patient, variant)
-		key := fmt.Sprintf("doc.%s", doc)
-
-		fmt.Printf("New patient: %s\n", patient)
-		t := rand.Intn(4) + 1
-		time.Sleep(time.Second * time.Duration(t))
-		fmt.Printf("Processed: %s after %d secs\n", patient, t)
-
-		err := ch.Publish(
-			HOSPITAL_EXCHANGE, // exchange
-			key,               // routing key
-			false,             // mandatory
-			false,             // immediate
-			amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(reply),
-			})
-
-		if err != nil {
-			fmt.Printf("Failed to publish: %v\n", err)
-		}
-		d.Ack(false)
-	}
-}
-
 func main() {
 	flag.Parse()
 
@@ -180,6 +143,43 @@ func main() {
 func handleInfo(msgs <-chan amqp.Delivery) {
 	for d := range msgs {
 		fmt.Printf("INFO: %s\n", d.Body)
+		d.Ack(false)
+	}
+}
+
+func handleJobs(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
+	for d := range msgs {
+		info := strings.SplitN(string(d.Body), " ", 3)
+
+		if len(info) != 3 {
+			d.Ack(false)
+			continue
+		}
+
+		doc := info[0]
+		patient := info[2]
+
+		reply := fmt.Sprintf("%s %s done", patient, variant)
+		key := fmt.Sprintf("doc.%s", doc)
+
+		fmt.Printf("New patient: %s\n", patient)
+		t := rand.Intn(4) + 1
+		time.Sleep(time.Second * time.Duration(t))
+		fmt.Printf("Processed: %s after %d secs\n", patient, t)
+
+		err := ch.Publish(
+			HOSPITAL_EXCHANGE, // exchange
+			key,               // routing key
+			false,             // mandatory
+			false,             // immediate
+			amqp.Publishing{
+				ContentType: "text/plain",
+				Body:        []byte(reply),
+			})
+
+		if err != nil {
+			fmt.Printf("Failed to publish: %v\n", err)
+		}
 		d.Ack(false)
 	}
 }
