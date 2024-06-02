@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -9,12 +10,19 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-var (
-	variants = []string{"knee", "hip"}
-	exchange = "x"
+const (
+	HOSPITAL_EXCHANGE = "hospital"
+	INFO_EXCHANGE     = "info"
 )
 
-func handle(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
+var (
+	variants = []string{}
+	hip      = flag.Bool("h", false, "hip")
+	knee     = flag.Bool("k", false, "knee")
+	elbow    = flag.Bool("e", false, "elbow")
+)
+
+func handleJobs(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
 	for d := range msgs {
 		info := strings.SplitN(string(d.Body), " ", 2)
 
@@ -32,14 +40,13 @@ func handle(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
 		fmt.Printf("New patient: %s\n", patient)
 		t := rand.Intn(4) + 1
 		time.Sleep(time.Second * time.Duration(t))
-		d.Ack(false)
 		fmt.Printf("Processed: %s after %d secs\n", patient, t)
 
 		err := ch.Publish(
-			exchange, // exchange
-			key,      // routing key
-			false,    // mandatory
-			false,    // immediate
+			HOSPITAL_EXCHANGE, // exchange
+			key,               // routing key
+			false,             // mandatory
+			false,             // immediate
 			amqp.Publishing{
 				ContentType: "text/plain",
 				Body:        []byte(reply),
@@ -47,12 +54,26 @@ func handle(ch *amqp.Channel, variant string, msgs <-chan amqp.Delivery) {
 
 		if err != nil {
 			fmt.Printf("Failed to publish: %v\n", err)
-			return
 		}
+		d.Ack(false)
 	}
 }
 
 func main() {
+	flag.Parse()
+
+	if *elbow {
+		variants = append(variants, "elbow")
+	}
+	if *knee {
+		variants = append(variants, "knee")
+	}
+	if *hip {
+		variants = append(variants, "hip")
+	}
+
+	fmt.Printf("Operation variants: %s\n", strings.Join(variants, ", "))
+
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 
 	if err != nil {
@@ -74,7 +95,7 @@ func main() {
 		return
 	}
 
-	err = ch.ExchangeDeclare(exchange, "topic", true, false, false, false, nil)
+	err = ch.ExchangeDeclare(HOSPITAL_EXCHANGE, "topic", true, false, false, false, nil)
 	if err != nil {
 		fmt.Printf("Failed to declare exchange: %v\n", err)
 		return
@@ -95,7 +116,7 @@ func main() {
 			return
 		}
 		key := fmt.Sprintf("tech.%s", v)
-		err = ch.QueueBind(q.Name, key, exchange, false, nil)
+		err = ch.QueueBind(q.Name, key, HOSPITAL_EXCHANGE, false, nil)
 		if err != nil {
 			fmt.Printf("Failed to bind queue: %v\n", err)
 			return
@@ -115,7 +136,7 @@ func main() {
 			fmt.Printf("Failed to consume: %v\n", err)
 			return
 		}
-		go handle(ch, v, msgs)
+		go handleJobs(ch, v, msgs)
 	}
 
 	var forever chan struct{}

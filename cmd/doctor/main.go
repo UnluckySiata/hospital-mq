@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -11,11 +12,12 @@ import (
 )
 
 const (
-	exchange = "x"
+	HOSPITAL_EXCHANGE = "hospital"
+	INFO_EXCHANGE     = "info"
 )
 
 var (
-	doc = "es"
+	doc = flag.String("n", "doc", "doc")
 )
 
 func handleFinished(msgs <-chan amqp.Delivery) {
@@ -26,6 +28,7 @@ func handleFinished(msgs <-chan amqp.Delivery) {
 }
 
 func main() {
+	flag.Parse()
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 
 	if err != nil {
@@ -41,7 +44,7 @@ func main() {
 	}
 	defer ch.Close()
 
-	err = ch.ExchangeDeclare(exchange, "topic", true, false, false, false, nil)
+	err = ch.ExchangeDeclare(HOSPITAL_EXCHANGE, "topic", true, false, false, false, nil)
 	if err != nil {
 		fmt.Printf("Failed to declare exchange: %v\n", err)
 		return
@@ -60,8 +63,8 @@ func main() {
 		fmt.Printf("Failed to declare queue: %v\n", err)
 		return
 	}
-	key := fmt.Sprintf("doc.%s", doc)
-	err = ch.QueueBind(q.Name, key, exchange, false, nil)
+	key := fmt.Sprintf("doc.%s", *doc)
+	err = ch.QueueBind(q.Name, key, HOSPITAL_EXCHANGE, false, nil)
 	if err != nil {
 		fmt.Printf("Failed to bind queue: %v\n", err)
 		return
@@ -83,6 +86,7 @@ func main() {
 	}
 	go handleFinished(msgs)
 
+	fmt.Printf("Welcome doctor %s!\n", *doc)
 	fmt.Println("Order examination:\n[variant] [patient name]")
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -102,13 +106,13 @@ func main() {
 		patient := info[1]
 
 		key := fmt.Sprintf("tech.%s", variant)
-		body := fmt.Sprintf("%s %s", doc, patient)
+		body := fmt.Sprintf("%s %s", *doc, patient)
 
 		err = ch.Publish(
-			exchange, // exchange
-			key,      // routing key
-			false,    // mandatory
-			false,    // immediate
+			HOSPITAL_EXCHANGE, // exchange
+			key,               // routing key
+			false,             // mandatory
+			false,             // immediate
 			amqp.Publishing{
 				ContentType: "text/plain",
 				Body:        []byte(body),
