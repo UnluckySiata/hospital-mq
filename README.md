@@ -1,7 +1,7 @@
 # Health Clinic Simulation
 An implementation of 3 types of users meant to simulate work of a clinic,
-done using rabbitmq with load balancing. A simple diagram of defined
-queues and exchanges can be found ![here](https://github.com/UnluckySiata/hospital-mq/blob/main/hospital-mq.svg)
+done using rabbitmq with load balancing. Here's a simple diagram of defined
+queues and exchanges ![](https://github.com/UnluckySiata/hospital-mq/blob/main/hospital-mq.svg)
 
 Defined actors:
 - doctor can request a health examination of a predefined type
